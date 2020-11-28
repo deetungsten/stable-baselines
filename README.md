@@ -5,7 +5,7 @@ This repo merges the two together so that you can install it via one line using 
 
 
 ## Installation Instruction
--Run the follow command
+- Run the follow command
 ```
 python3 -m pip install git+git://github.com/deetungsten/stable-baselines.git
 ```
