@@ -68,9 +68,9 @@ def reduce_var(tensor, axis=None, keepdims=False):
     :param keepdims: (bool) keep the other dimensions the same
     :return: (TensorFlow Tensor) the variance of the tensor
     """
-    tensor_mean = tf.reduce_mean(tensor, axis=axis, keepdims=True)
+    tensor_mean = tf.reduce_mean(input_tensor=tensor, axis=axis, keepdims=True)
     devs_squared = tf.square(tensor - tensor_mean)
-    return tf.reduce_mean(devs_squared, axis=axis, keepdims=keepdims)
+    return tf.reduce_mean(input_tensor=devs_squared, axis=axis, keepdims=keepdims)
 
 
 def get_target_updates(_vars, target_vars, tau, verbose=0):
@@ -91,8 +91,8 @@ def get_target_updates(_vars, target_vars, tau, verbose=0):
     for var, target_var in zip(_vars, target_vars):
         if verbose >= 2:
             logger.info('  {} <- {}'.format(target_var.name, var.name))
-        init_updates.append(tf.assign(target_var, var))
-        soft_updates.append(tf.assign(target_var, (1. - tau) * target_var + tau * var))
+        init_updates.append(tf.compat.v1.assign(target_var, var))
+        soft_updates.append(tf.compat.v1.assign(target_var, (1. - tau) * target_var + tau * var))
     assert len(init_updates) == len(_vars)
     assert len(soft_updates) == len(_vars)
     return tf.group(*init_updates), tf.group(*soft_updates)
@@ -128,12 +128,12 @@ def get_perturbed_actor_updates(actor, perturbed_actor, param_noise_stddev, verb
             if verbose >= 2:
                 logger.info('  {} <- {} + noise'.format(perturbed_var.name, var.name))
             # Add Gaussian noise to the parameter
-            updates.append(tf.assign(perturbed_var,
-                                     var + tf.random_normal(tf.shape(var), mean=0., stddev=param_noise_stddev)))
+            updates.append(tf.compat.v1.assign(perturbed_var,
+                                     var + tf.random.normal(tf.shape(input=var), mean=0., stddev=param_noise_stddev)))
         else:
             if verbose >= 2:
                 logger.info('  {} <- {}'.format(perturbed_var.name, var.name))
-            updates.append(tf.assign(perturbed_var, var))
+            updates.append(tf.compat.v1.assign(perturbed_var, var))
     assert len(updates) == len(tf_util.get_globals_vars(actor))
     return tf.group(*updates)
 
@@ -329,17 +329,17 @@ class DDPG(OffPolicyRLModel):
 
                 self.replay_buffer = ReplayBuffer(self.buffer_size)
 
-                with tf.variable_scope("input", reuse=False):
+                with tf.compat.v1.variable_scope("input", reuse=False):
                     # Observation normalization.
                     if self.normalize_observations:
-                        with tf.variable_scope('obs_rms'):
+                        with tf.compat.v1.variable_scope('obs_rms'):
                             self.obs_rms = RunningMeanStd(shape=self.observation_space.shape)
                     else:
                         self.obs_rms = None
 
                     # Return normalization.
                     if self.normalize_returns:
-                        with tf.variable_scope('ret_rms'):
+                        with tf.compat.v1.variable_scope('ret_rms'):
                             self.ret_rms = RunningMeanStd()
                     else:
                         self.ret_rms = None
@@ -375,14 +375,14 @@ class DDPG(OffPolicyRLModel):
                     # Inputs.
                     self.obs_train = self.policy_tf.obs_ph
                     self.action_train_ph = self.policy_tf.action_ph
-                    self.terminals_ph = tf.placeholder(tf.float32, shape=(None, 1), name='terminals')
-                    self.rewards = tf.placeholder(tf.float32, shape=(None, 1), name='rewards')
-                    self.actions = tf.placeholder(tf.float32, shape=(None,) + self.action_space.shape, name='actions')
-                    self.critic_target = tf.placeholder(tf.float32, shape=(None, 1), name='critic_target')
-                    self.param_noise_stddev = tf.placeholder(tf.float32, shape=(), name='param_noise_stddev')
+                    self.terminals_ph = tf.compat.v1.placeholder(tf.float32, shape=(None, 1), name='terminals')
+                    self.rewards = tf.compat.v1.placeholder(tf.float32, shape=(None, 1), name='rewards')
+                    self.actions = tf.compat.v1.placeholder(tf.float32, shape=(None,) + self.action_space.shape, name='actions')
+                    self.critic_target = tf.compat.v1.placeholder(tf.float32, shape=(None, 1), name='critic_target')
+                    self.param_noise_stddev = tf.compat.v1.placeholder(tf.float32, shape=(), name='param_noise_stddev')
 
                 # Create networks and core TF parts that are shared across setup parts.
-                with tf.variable_scope("model", reuse=False):
+                with tf.compat.v1.variable_scope("model", reuse=False):
                     self.actor_tf = self.policy_tf.make_actor(normalized_obs)
                     self.normalized_critic_tf = self.policy_tf.make_critic(normalized_obs, self.actions)
                     self.normalized_critic_with_actor_tf = self.policy_tf.make_critic(normalized_obs,
@@ -392,11 +392,11 @@ class DDPG(OffPolicyRLModel):
                 if self.param_noise is not None:
                     self._setup_param_noise(normalized_obs)
 
-                with tf.variable_scope("target", reuse=False):
+                with tf.compat.v1.variable_scope("target", reuse=False):
                     critic_target = self.target_policy.make_critic(normalized_next_obs,
                                                                    self.target_policy.make_actor(normalized_next_obs))
 
-                with tf.variable_scope("loss", reuse=False):
+                with tf.compat.v1.variable_scope("loss", reuse=False):
                     self.critic_tf = denormalize(
                         tf.clip_by_value(self.normalized_critic_tf, self.return_range[0], self.return_range[1]),
                         self.ret_rms)
@@ -409,9 +409,9 @@ class DDPG(OffPolicyRLModel):
                     q_next_obs = denormalize(critic_target, self.ret_rms)
                     self.target_q = self.rewards + (1. - self.terminals_ph) * self.gamma * q_next_obs
 
-                    tf.summary.scalar('critic_target', tf.reduce_mean(self.critic_target))
+                    tf.compat.v1.summary.scalar('critic_target', tf.reduce_mean(input_tensor=self.critic_target))
                     if self.full_tensorboard_log:
-                        tf.summary.histogram('critic_target', self.critic_target)
+                        tf.compat.v1.summary.histogram('critic_target', self.critic_target)
 
                     # Set up parts.
                     if self.normalize_returns and self.enable_popart:
@@ -419,37 +419,37 @@ class DDPG(OffPolicyRLModel):
                     self._setup_stats()
                     self._setup_target_network_updates()
 
-                with tf.variable_scope("input_info", reuse=False):
-                    tf.summary.scalar('rewards', tf.reduce_mean(self.rewards))
-                    tf.summary.scalar('param_noise_stddev', tf.reduce_mean(self.param_noise_stddev))
+                with tf.compat.v1.variable_scope("input_info", reuse=False):
+                    tf.compat.v1.summary.scalar('rewards', tf.reduce_mean(input_tensor=self.rewards))
+                    tf.compat.v1.summary.scalar('param_noise_stddev', tf.reduce_mean(input_tensor=self.param_noise_stddev))
 
                     if self.full_tensorboard_log:
-                        tf.summary.histogram('rewards', self.rewards)
-                        tf.summary.histogram('param_noise_stddev', self.param_noise_stddev)
+                        tf.compat.v1.summary.histogram('rewards', self.rewards)
+                        tf.compat.v1.summary.histogram('param_noise_stddev', self.param_noise_stddev)
                         if len(self.observation_space.shape) == 3 and self.observation_space.shape[0] in [1, 3, 4]:
-                            tf.summary.image('observation', self.obs_train)
+                            tf.compat.v1.summary.image('observation', self.obs_train)
                         else:
-                            tf.summary.histogram('observation', self.obs_train)
+                            tf.compat.v1.summary.histogram('observation', self.obs_train)
 
-                with tf.variable_scope("Adam_mpi", reuse=False):
+                with tf.compat.v1.variable_scope("Adam_mpi", reuse=False):
                     self._setup_actor_optimizer()
                     self._setup_critic_optimizer()
-                    tf.summary.scalar('actor_loss', self.actor_loss)
-                    tf.summary.scalar('critic_loss', self.critic_loss)
+                    tf.compat.v1.summary.scalar('actor_loss', self.actor_loss)
+                    tf.compat.v1.summary.scalar('critic_loss', self.critic_loss)
 
                 self.params = tf_util.get_trainable_vars("model") \
                     + tf_util.get_trainable_vars('noise/') + tf_util.get_trainable_vars('noise_adapt/')
 
                 self.target_params = tf_util.get_trainable_vars("target")
-                self.obs_rms_params = [var for var in tf.global_variables()
+                self.obs_rms_params = [var for var in tf.compat.v1.global_variables()
                                        if "obs_rms" in var.name]
-                self.ret_rms_params = [var for var in tf.global_variables()
+                self.ret_rms_params = [var for var in tf.compat.v1.global_variables()
                                        if "ret_rms" in var.name]
 
                 with self.sess.as_default():
                     self._initialize(self.sess)
 
-                self.summary = tf.summary.merge_all()
+                self.summary = tf.compat.v1.summary.merge_all()
 
     def _setup_target_network_updates(self):
         """
@@ -469,13 +469,13 @@ class DDPG(OffPolicyRLModel):
         """
         assert self.param_noise is not None
 
-        with tf.variable_scope("noise", reuse=False):
+        with tf.compat.v1.variable_scope("noise", reuse=False):
             self.perturbed_actor_tf = self.param_noise_actor.make_actor(normalized_obs)
 
-        with tf.variable_scope("noise_adapt", reuse=False):
+        with tf.compat.v1.variable_scope("noise_adapt", reuse=False):
             adaptive_actor_tf = self.adaptive_param_noise_actor.make_actor(normalized_obs)
 
-        with tf.variable_scope("noise_update_func", reuse=False):
+        with tf.compat.v1.variable_scope("noise_update_func", reuse=False):
             if self.verbose >= 2:
                 logger.info('setting up param noise')
             self.perturb_policy_ops = get_perturbed_actor_updates('model/pi/', 'noise/pi/', self.param_noise_stddev,
@@ -484,7 +484,7 @@ class DDPG(OffPolicyRLModel):
             self.perturb_adaptive_policy_ops = get_perturbed_actor_updates('model/pi/', 'noise_adapt/pi/',
                                                                            self.param_noise_stddev,
                                                                            verbose=self.verbose)
-            self.adaptive_policy_distance = tf.sqrt(tf.reduce_mean(tf.square(self.actor_tf - adaptive_actor_tf)))
+            self.adaptive_policy_distance = tf.sqrt(tf.reduce_mean(input_tensor=tf.square(self.actor_tf - adaptive_actor_tf)))
 
     def _setup_actor_optimizer(self):
         """
@@ -492,7 +492,7 @@ class DDPG(OffPolicyRLModel):
         """
         if self.verbose >= 2:
             logger.info('setting up actor optimizer')
-        self.actor_loss = -tf.reduce_mean(self.critic_with_actor_tf)
+        self.actor_loss = -tf.reduce_mean(input_tensor=self.critic_with_actor_tf)
         actor_shapes = [var.get_shape().as_list() for var in tf_util.get_trainable_vars('model/pi/')]
         actor_nb_params = sum([reduce(lambda x, y: x * y, shape) for shape in actor_shapes])
         if self.verbose >= 2:
@@ -511,7 +511,7 @@ class DDPG(OffPolicyRLModel):
             logger.info('setting up critic optimizer')
         normalized_critic_target_tf = tf.clip_by_value(normalize(self.critic_target, self.ret_rms),
                                                        self.return_range[0], self.return_range[1])
-        self.critic_loss = tf.reduce_mean(tf.square(self.normalized_critic_tf - normalized_critic_target_tf))
+        self.critic_loss = tf.reduce_mean(input_tensor=tf.square(self.normalized_critic_tf - normalized_critic_target_tf))
         if self.critic_l2_reg > 0.:
             critic_reg_vars = [var for var in tf_util.get_trainable_vars('model/qf/')
                                if 'bias' not in var.name and 'qf_output' not in var.name and 'b' not in var.name]
@@ -541,9 +541,9 @@ class DDPG(OffPolicyRLModel):
         See https://arxiv.org/pdf/1602.07714.pdf for details.
         Preserving Outputs Precisely, while Adaptively Rescaling Targets”.
         """
-        self.old_std = tf.placeholder(tf.float32, shape=[1], name='old_std')
+        self.old_std = tf.compat.v1.placeholder(tf.float32, shape=[1], name='old_std')
         new_std = self.ret_rms.std
-        self.old_mean = tf.placeholder(tf.float32, shape=[1], name='old_mean')
+        self.old_mean = tf.compat.v1.placeholder(tf.float32, shape=[1], name='old_mean')
         new_mean = self.ret_rms.mean
 
         self.renormalize_q_outputs_op = []
@@ -564,11 +564,11 @@ class DDPG(OffPolicyRLModel):
         Setup the stat logger for DDPG.
         """
         ops = [
-            tf.reduce_mean(self.critic_tf),
+            tf.reduce_mean(input_tensor=self.critic_tf),
             reduce_std(self.critic_tf),
-            tf.reduce_mean(self.critic_with_actor_tf),
+            tf.reduce_mean(input_tensor=self.critic_with_actor_tf),
             reduce_std(self.critic_with_actor_tf),
-            tf.reduce_mean(self.actor_tf),
+            tf.reduce_mean(input_tensor=self.actor_tf),
             reduce_std(self.actor_tf)
         ]
         names = [
@@ -585,11 +585,11 @@ class DDPG(OffPolicyRLModel):
             names += ['ret_rms_mean', 'ret_rms_std']
 
         if self.normalize_observations:
-            ops += [tf.reduce_mean(self.obs_rms.mean), tf.reduce_mean(self.obs_rms.std)]
+            ops += [tf.reduce_mean(input_tensor=self.obs_rms.mean), tf.reduce_mean(input_tensor=self.obs_rms.std)]
             names += ['obs_rms_mean', 'obs_rms_std']
 
         if self.param_noise:
-            ops += [tf.reduce_mean(self.perturbed_actor_tf), reduce_std(self.perturbed_actor_tf)]
+            ops += [tf.reduce_mean(input_tensor=self.perturbed_actor_tf), reduce_std(self.perturbed_actor_tf)]
             names += ['reference_perturbed_action_mean', 'reference_perturbed_action_std']
 
         self.stats_ops = ops
@@ -691,8 +691,8 @@ class DDPG(OffPolicyRLModel):
             # run loss backprop with summary if the step_id was not already logged (can happen with the right
             # parameters as the step value is only an estimate)
             if self.full_tensorboard_log and log and step not in self.tb_seen_steps:
-                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                run_metadata = tf.RunMetadata()
+                run_options = tf.compat.v1.RunOptions(trace_level=tf.compat.v1.RunOptions.FULL_TRACE)
+                run_metadata = tf.compat.v1.RunMetadata()
                 summary, actor_grads, actor_loss, critic_grads, critic_loss = \
                     self.sess.run([self.summary] + ops, td_map, options=run_options, run_metadata=run_metadata)
 
@@ -717,7 +717,7 @@ class DDPG(OffPolicyRLModel):
         :param sess: (TensorFlow Session) the current TensorFlow session
         """
         self.sess = sess
-        self.sess.run(tf.global_variables_initializer())
+        self.sess.run(tf.compat.v1.global_variables_initializer())
         self.actor_optimizer.sync()
         self.critic_optimizer.sync()
         self.sess.run(self.target_init_updates)

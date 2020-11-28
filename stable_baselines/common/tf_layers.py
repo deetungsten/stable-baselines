@@ -54,7 +54,7 @@ def mlp(input_tensor, layers, activ_fn=tf.nn.relu, layer_norm=False):
     """
     output = input_tensor
     for i, layer_size in enumerate(layers):
-        output = tf.layers.dense(output, layer_size, name='fc' + str(i))
+        output = tf.compat.v1.layers.dense(output, layer_size, name='fc' + str(i))
         if layer_norm:
             output = tf.contrib.layers.layer_norm(output, center=True, scale=True)
         output = activ_fn(output)
@@ -99,12 +99,12 @@ def conv(input_tensor, scope, *, n_filters, filter_size, stride,
     bias_var_shape = [n_filters] if one_dim_bias else [1, n_filters, 1, 1]
     n_input = input_tensor.get_shape()[channel_ax].value
     wshape = [filter_height, filter_width, n_input, n_filters]
-    with tf.variable_scope(scope):
-        weight = tf.get_variable("w", wshape, initializer=ortho_init(init_scale))
-        bias = tf.get_variable("b", bias_var_shape, initializer=tf.constant_initializer(0.0))
+    with tf.compat.v1.variable_scope(scope):
+        weight = tf.compat.v1.get_variable("w", wshape, initializer=ortho_init(init_scale))
+        bias = tf.compat.v1.get_variable("b", bias_var_shape, initializer=tf.compat.v1.constant_initializer(0.0))
         if not one_dim_bias and data_format == 'NHWC':
             bias = tf.reshape(bias, bshape)
-        return bias + tf.nn.conv2d(input_tensor, weight, strides=strides, padding=pad, data_format=data_format)
+        return bias + tf.nn.conv2d(input=input_tensor, filters=weight, strides=strides, padding=pad, data_format=data_format)
 
 
 def linear(input_tensor, scope, n_hidden, *, init_scale=1.0, init_bias=0.0):
@@ -118,10 +118,29 @@ def linear(input_tensor, scope, n_hidden, *, init_scale=1.0, init_bias=0.0):
     :param init_bias: (int) The initialization offset bias
     :return: (TensorFlow Tensor) fully connected layer
     """
-    with tf.variable_scope(scope):
-        n_input = input_tensor.get_shape()[1].value
-        weight = tf.get_variable("w", [n_input, n_hidden], initializer=ortho_init(init_scale))
-        bias = tf.get_variable("b", [n_hidden], initializer=tf.constant_initializer(init_bias))
+    with tf.compat.v1.variable_scope(scope):
+        n_input = input_tensor.get_shape()[1]
+        weight = tf.compat.v1.get_variable("w", [n_input, n_hidden], initializer=ortho_init(init_scale))
+        bias = tf.compat.v1.get_variable("b", [n_hidden], initializer=tf.compat.v1.constant_initializer(init_bias))
+        return tf.matmul(input_tensor, weight) + bias
+        
+
+def pos_linear(input_tensor, scope, n_hidden, *, init_scale=1.0, init_bias=0.0):
+    """
+    Creates a fully connected layer for TensorFlow with positive weights
+
+    :param input_tensor: (TensorFlow Tensor) The input tensor for the fully connected layer
+    :param scope: (str) The TensorFlow variable scope
+    :param n_hidden: (int) The number of hidden neurons
+    :param init_scale: (int) The initialization scale
+    :param init_bias: (int) The initialization offset bias
+    :return: (TensorFlow Tensor) fully connected layer
+    """
+    with tf.compat.v1.variable_scope(scope):
+        n_input = input_tensor.get_shape()[1]
+        weight = tf.compat.v1.get_variable("w", [n_input, n_hidden], initializer=ortho_init(init_scale),
+            constraint=tf.compat.v1.keras.constraints.non_neg())
+        bias = tf.compat.v1.get_variable("b", [n_hidden], initializer=tf.compat.v1.constant_initializer(init_bias))
         return tf.matmul(input_tensor, weight) + bias
 
 
@@ -138,22 +157,22 @@ def lstm(input_tensor, mask_tensor, cell_state_hidden, scope, n_hidden, init_sca
     :param layer_norm: (bool) Whether to apply Layer Normalization or not
     :return: (TensorFlow Tensor) LSTM cell
     """
-    _, n_input = [v.value for v in input_tensor[0].get_shape()]
-    with tf.variable_scope(scope):
-        weight_x = tf.get_variable("wx", [n_input, n_hidden * 4], initializer=ortho_init(init_scale))
-        weight_h = tf.get_variable("wh", [n_hidden, n_hidden * 4], initializer=ortho_init(init_scale))
-        bias = tf.get_variable("b", [n_hidden * 4], initializer=tf.constant_initializer(0.0))
+    _, n_input = [v for v in input_tensor[0].get_shape()]
+    with tf.compat.v1.variable_scope(scope):
+        weight_x = tf.compat.v1.get_variable("wx", [n_input, n_hidden * 4], initializer=ortho_init(init_scale))
+        weight_h = tf.compat.v1.get_variable("wh", [n_hidden, n_hidden * 4], initializer=ortho_init(init_scale))
+        bias = tf.compat.v1.get_variable("b", [n_hidden * 4], initializer=tf.compat.v1.constant_initializer(0.0))
 
         if layer_norm:
             # Gain and bias of layer norm
-            gain_x = tf.get_variable("gx", [n_hidden * 4], initializer=tf.constant_initializer(1.0))
-            bias_x = tf.get_variable("bx", [n_hidden * 4], initializer=tf.constant_initializer(0.0))
+            gain_x = tf.compat.v1.get_variable("gx", [n_hidden * 4], initializer=tf.compat.v1.constant_initializer(1.0))
+            bias_x = tf.compat.v1.get_variable("bx", [n_hidden * 4], initializer=tf.compat.v1.constant_initializer(0.0))
 
-            gain_h = tf.get_variable("gh", [n_hidden * 4], initializer=tf.constant_initializer(1.0))
-            bias_h = tf.get_variable("bh", [n_hidden * 4], initializer=tf.constant_initializer(0.0))
+            gain_h = tf.compat.v1.get_variable("gh", [n_hidden * 4], initializer=tf.compat.v1.constant_initializer(1.0))
+            bias_h = tf.compat.v1.get_variable("bh", [n_hidden * 4], initializer=tf.compat.v1.constant_initializer(0.0))
 
-            gain_c = tf.get_variable("gc", [n_hidden], initializer=tf.constant_initializer(1.0))
-            bias_c = tf.get_variable("bc", [n_hidden], initializer=tf.constant_initializer(0.0))
+            gain_c = tf.compat.v1.get_variable("gc", [n_hidden], initializer=tf.compat.v1.constant_initializer(1.0))
+            bias_c = tf.compat.v1.get_variable("bc", [n_hidden], initializer=tf.compat.v1.constant_initializer(0.0))
 
     cell_state, hidden = tf.split(axis=1, num_or_size_splits=2, value=cell_state_hidden)
     for idx, (_input, mask) in enumerate(zip(input_tensor, mask_tensor)):
@@ -192,7 +211,7 @@ def _ln(input_tensor, gain, bias, epsilon=1e-5, axes=None):
     """
     if axes is None:
         axes = [1]
-    mean, variance = tf.nn.moments(input_tensor, axes=axes, keep_dims=True)
+    mean, variance = tf.nn.moments(x=input_tensor, axes=axes, keepdims=True)
     input_tensor = (input_tensor - mean) / tf.sqrt(variance + epsilon)
     input_tensor = input_tensor * gain + bias
     return input_tensor
@@ -220,6 +239,6 @@ def conv_to_fc(input_tensor):
     :param input_tensor: (TensorFlow Tensor) The convolutional input tensor
     :return: (TensorFlow Tensor) The fully connected output tensor
     """
-    n_hidden = np.prod([v.value for v in input_tensor.get_shape()[1:]])
+    n_hidden = np.prod([v for v in input_tensor.get_shape()[1:]])
     input_tensor = tf.reshape(input_tensor, [-1, n_hidden])
     return input_tensor

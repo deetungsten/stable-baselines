@@ -22,7 +22,7 @@ def gaussian_likelihood(input_, mu_, log_std):
     :return: (tf.Tensor)
     """
     pre_sum = -0.5 * (((input_ - mu_) / (tf.exp(log_std) + EPS)) ** 2 + 2 * log_std + np.log(2 * np.pi))
-    return tf.reduce_sum(pre_sum, axis=1)
+    return tf.reduce_sum(input_tensor=pre_sum, axis=1)
 
 
 def gaussian_entropy(log_std):
@@ -32,7 +32,7 @@ def gaussian_entropy(log_std):
     :param log_std: (tf.Tensor) Log of the standard deviation
     :return: (tf.Tensor)
     """
-    return tf.reduce_sum(log_std + 0.5 * np.log(2.0 * np.pi * np.e), axis=-1)
+    return tf.reduce_sum(input_tensor=log_std + 0.5 * np.log(2.0 * np.pi * np.e), axis=-1)
 
 
 def clip_but_pass_gradient(input_, lower=-1., upper=1.):
@@ -60,7 +60,7 @@ def apply_squashing_func(mu_, pi_, logp_pi):
     # To avoid evil machine precision error, strictly clip 1-pi**2 to [0,1] range.
     # logp_pi -= tf.reduce_sum(tf.log(clip_but_pass_gradient(1 - policy ** 2, lower=0, upper=1) + EPS), axis=1)
     # Squash correction (from original implementation)
-    logp_pi -= tf.reduce_sum(tf.log(1 - policy ** 2 + EPS), axis=1)
+    logp_pi -= tf.reduce_sum(input_tensor=tf.math.log(1 - policy ** 2 + EPS), axis=1)
     return deterministic_policy, policy, logp_pi
 
 
@@ -187,18 +187,18 @@ class FeedForwardPolicy(SACPolicy):
         if obs is None:
             obs = self.processed_obs
 
-        with tf.variable_scope(scope, reuse=reuse):
+        with tf.compat.v1.variable_scope(scope, reuse=reuse):
             if self.feature_extraction == "cnn":
                 pi_h = self.cnn_extractor(obs, **self.cnn_kwargs)
             else:
-                pi_h = tf.layers.flatten(obs)
+                pi_h = tf.compat.v1.layers.flatten(obs)
 
             pi_h = mlp(pi_h, self.layers, self.activ_fn, layer_norm=self.layer_norm)
 
-            self.act_mu = mu_ = tf.layers.dense(pi_h, self.ac_space.shape[0], activation=None)
+            self.act_mu = mu_ = tf.compat.v1.layers.dense(pi_h, self.ac_space.shape[0], activation=None)
             # Important difference with SAC and other algo such as PPO:
             # the std depends on the state, so we cannot use stable_baselines.common.distribution
-            log_std = tf.layers.dense(pi_h, self.ac_space.shape[0], activation=None)
+            log_std = tf.compat.v1.layers.dense(pi_h, self.ac_space.shape[0], activation=None)
 
         # Regularize policy output (not used for now)
         # reg_loss = self.reg_weight * 0.5 * tf.reduce_mean(log_std ** 2)
@@ -213,7 +213,7 @@ class FeedForwardPolicy(SACPolicy):
 
         self.std = std = tf.exp(log_std)
         # Reparameterization trick
-        pi_ = mu_ + tf.random_normal(tf.shape(mu_)) * std
+        pi_ = mu_ + tf.random.normal(tf.shape(input=mu_)) * std
         logp_pi = gaussian_likelihood(pi_, mu_, log_std)
         self.entropy = gaussian_entropy(log_std)
         # MISSING: reg params for log and mu
@@ -229,17 +229,17 @@ class FeedForwardPolicy(SACPolicy):
         if obs is None:
             obs = self.processed_obs
 
-        with tf.variable_scope(scope, reuse=reuse):
+        with tf.compat.v1.variable_scope(scope, reuse=reuse):
             if self.feature_extraction == "cnn":
                 critics_h = self.cnn_extractor(obs, **self.cnn_kwargs)
             else:
-                critics_h = tf.layers.flatten(obs)
+                critics_h = tf.compat.v1.layers.flatten(obs)
 
             if create_vf:
                 # Value function
-                with tf.variable_scope('vf', reuse=reuse):
+                with tf.compat.v1.variable_scope('vf', reuse=reuse):
                     vf_h = mlp(critics_h, self.layers, self.activ_fn, layer_norm=self.layer_norm)
-                    value_fn = tf.layers.dense(vf_h, 1, name="vf")
+                    value_fn = tf.compat.v1.layers.dense(vf_h, 1, name="vf")
                 self.value_fn = value_fn
 
             if create_qf:
@@ -247,13 +247,13 @@ class FeedForwardPolicy(SACPolicy):
                 qf_h = tf.concat([critics_h, action], axis=-1)
 
                 # Double Q values to reduce overestimation
-                with tf.variable_scope('qf1', reuse=reuse):
+                with tf.compat.v1.variable_scope('qf1', reuse=reuse):
                     qf1_h = mlp(qf_h, self.layers, self.activ_fn, layer_norm=self.layer_norm)
-                    qf1 = tf.layers.dense(qf1_h, 1, name="qf1")
+                    qf1 = tf.compat.v1.layers.dense(qf1_h, 1, name="qf1")
 
-                with tf.variable_scope('qf2', reuse=reuse):
+                with tf.compat.v1.variable_scope('qf2', reuse=reuse):
                     qf2_h = mlp(qf_h, self.layers, self.activ_fn, layer_norm=self.layer_norm)
-                    qf2 = tf.layers.dense(qf2_h, 1, name="qf2")
+                    qf2 = tf.compat.v1.layers.dense(qf2_h, 1, name="qf2")
 
                 self.qf1 = qf1
                 self.qf2 = qf2

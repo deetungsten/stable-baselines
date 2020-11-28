@@ -117,15 +117,15 @@ class FeedForwardPolicy(TD3Policy):
         if obs is None:
             obs = self.processed_obs
 
-        with tf.variable_scope(scope, reuse=reuse):
+        with tf.compat.v1.variable_scope(scope, reuse=reuse):
             if self.feature_extraction == "cnn":
                 pi_h = self.cnn_extractor(obs, **self.cnn_kwargs)
             else:
-                pi_h = tf.layers.flatten(obs)
+                pi_h = tf.compat.v1.layers.flatten(obs)
 
             pi_h = mlp(pi_h, self.layers, self.activ_fn, layer_norm=self.layer_norm)
 
-            self.policy = policy = tf.layers.dense(pi_h, self.ac_space.shape[0], activation=tf.tanh)
+            self.policy = policy = tf.compat.v1.layers.dense(pi_h, self.ac_space.shape[0], activation=tf.tanh)
 
         return policy
 
@@ -133,23 +133,23 @@ class FeedForwardPolicy(TD3Policy):
         if obs is None:
             obs = self.processed_obs
 
-        with tf.variable_scope(scope, reuse=reuse):
+        with tf.compat.v1.variable_scope(scope, reuse=reuse):
             if self.feature_extraction == "cnn":
                 critics_h = self.cnn_extractor(obs, **self.cnn_kwargs)
             else:
-                critics_h = tf.layers.flatten(obs)
+                critics_h = tf.compat.v1.layers.flatten(obs)
 
             # Concatenate preprocessed state and action
             qf_h = tf.concat([critics_h, action], axis=-1)
 
             # Double Q values to reduce overestimation
-            with tf.variable_scope('qf1', reuse=reuse):
+            with tf.compat.v1.variable_scope('qf1', reuse=reuse):
                 qf1_h = mlp(qf_h, self.layers, self.activ_fn, layer_norm=self.layer_norm)
-                qf1 = tf.layers.dense(qf1_h, 1, name="qf1")
+                qf1 = tf.compat.v1.layers.dense(qf1_h, 1, name="qf1")
 
-            with tf.variable_scope('qf2', reuse=reuse):
+            with tf.compat.v1.variable_scope('qf2', reuse=reuse):
                 qf2_h = mlp(qf_h, self.layers, self.activ_fn, layer_norm=self.layer_norm)
-                qf2 = tf.layers.dense(qf2_h, 1, name="qf2")
+                qf2 = tf.compat.v1.layers.dense(qf2_h, 1, name="qf2")
 
             self.qf1 = qf1
             self.qf2 = qf2

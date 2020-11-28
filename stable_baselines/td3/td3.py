@@ -128,7 +128,7 @@ class TD3(OffPolicyRLModel):
 
                 self.replay_buffer = ReplayBuffer(self.buffer_size)
 
-                with tf.variable_scope("input", reuse=False):
+                with tf.compat.v1.variable_scope("input", reuse=False):
                     # Create policy and target TF objects
                     self.policy_tf = self.policy(self.sess, self.observation_space, self.action_space,
                                                  **self.policy_kwargs)
@@ -142,13 +142,13 @@ class TD3(OffPolicyRLModel):
                     self.next_observations_ph = self.target_policy_tf.obs_ph
                     self.processed_next_obs_ph = self.target_policy_tf.processed_obs
                     self.action_target = self.target_policy_tf.action_ph
-                    self.terminals_ph = tf.placeholder(tf.float32, shape=(None, 1), name='terminals')
-                    self.rewards_ph = tf.placeholder(tf.float32, shape=(None, 1), name='rewards')
-                    self.actions_ph = tf.placeholder(tf.float32, shape=(None,) + self.action_space.shape,
+                    self.terminals_ph = tf.compat.v1.placeholder(tf.float32, shape=(None, 1), name='terminals')
+                    self.rewards_ph = tf.compat.v1.placeholder(tf.float32, shape=(None, 1), name='rewards')
+                    self.actions_ph = tf.compat.v1.placeholder(tf.float32, shape=(None,) + self.action_space.shape,
                                                      name='actions')
-                    self.learning_rate_ph = tf.placeholder(tf.float32, [], name="learning_rate_ph")
+                    self.learning_rate_ph = tf.compat.v1.placeholder(tf.float32, [], name="learning_rate_ph")
 
-                with tf.variable_scope("model", reuse=False):
+                with tf.compat.v1.variable_scope("model", reuse=False):
                     # Create the policy
                     self.policy_out = policy_out = self.policy_tf.make_actor(self.processed_obs_ph)
                     # Use two Q-functions to improve performance by reducing overestimation bias
@@ -157,11 +157,11 @@ class TD3(OffPolicyRLModel):
                     qf1_pi, _ = self.policy_tf.make_critics(self.processed_obs_ph,
                                                             policy_out, reuse=True)
 
-                with tf.variable_scope("target", reuse=False):
+                with tf.compat.v1.variable_scope("target", reuse=False):
                     # Create target networks
                     target_policy_out = self.target_policy_tf.make_actor(self.processed_next_obs_ph)
                     # Target policy smoothing, by adding clipped noise to target actions
-                    target_noise = tf.random_normal(tf.shape(target_policy_out), stddev=self.target_policy_noise)
+                    target_noise = tf.random.normal(tf.shape(input=target_policy_out), stddev=self.target_policy_noise)
                     target_noise = tf.clip_by_value(target_noise, -self.target_noise_clip, self.target_noise_clip)
                     # Clip the noisy action to remain in the bounds [-1, 1] (output of a tanh)
                     noisy_target_action = tf.clip_by_value(target_policy_out + target_noise, -1, 1)
@@ -169,7 +169,7 @@ class TD3(OffPolicyRLModel):
                     qf1_target, qf2_target = self.target_policy_tf.make_critics(self.processed_next_obs_ph,
                                                                                 noisy_target_action)
 
-                with tf.variable_scope("loss", reuse=False):
+                with tf.compat.v1.variable_scope("loss", reuse=False):
                     # Take the min of the two target Q-Values (clipped Double-Q Learning)
                     min_qf_target = tf.minimum(qf1_target, qf2_target)
 
@@ -180,23 +180,23 @@ class TD3(OffPolicyRLModel):
                     )
 
                     # Compute Q-Function loss
-                    qf1_loss = tf.reduce_mean((q_backup - qf1) ** 2)
-                    qf2_loss = tf.reduce_mean((q_backup - qf2) ** 2)
+                    qf1_loss = tf.reduce_mean(input_tensor=(q_backup - qf1) ** 2)
+                    qf2_loss = tf.reduce_mean(input_tensor=(q_backup - qf2) ** 2)
 
                     qvalues_losses = qf1_loss + qf2_loss
 
                     # Policy loss: maximise q value
-                    self.policy_loss = policy_loss = -tf.reduce_mean(qf1_pi)
+                    self.policy_loss = policy_loss = -tf.reduce_mean(input_tensor=qf1_pi)
 
                     # Policy train op
                     # will be called only every n training steps,
                     # where n is the policy delay
-                    policy_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate_ph)
+                    policy_optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=self.learning_rate_ph)
                     policy_train_op = policy_optimizer.minimize(policy_loss, var_list=tf_util.get_trainable_vars('model/pi'))
                     self.policy_train_op = policy_train_op
 
                     # Q Values optimizer
-                    qvalues_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate_ph)
+                    qvalues_optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=self.learning_rate_ph)
                     qvalues_params = tf_util.get_trainable_vars('model/values_fn/')
 
                     # Q Values and policy target params
@@ -205,13 +205,13 @@ class TD3(OffPolicyRLModel):
 
                     # Polyak averaging for target variables
                     self.target_ops = [
-                        tf.assign(target, (1 - self.tau) * target + self.tau * source)
+                        tf.compat.v1.assign(target, (1 - self.tau) * target + self.tau * source)
                         for target, source in zip(target_params, source_params)
                     ]
 
                     # Initializing target to match source variables
                     target_init_op = [
-                        tf.assign(target, source)
+                        tf.compat.v1.assign(target, source)
                         for target, source in zip(target_params, source_params)
                     ]
 
@@ -223,10 +223,10 @@ class TD3(OffPolicyRLModel):
                                      qf1, qf2, train_values_op]
 
                     # Monitor losses and entropy in tensorboard
-                    tf.summary.scalar('policy_loss', policy_loss)
-                    tf.summary.scalar('qf1_loss', qf1_loss)
-                    tf.summary.scalar('qf2_loss', qf2_loss)
-                    tf.summary.scalar('learning_rate', tf.reduce_mean(self.learning_rate_ph))
+                    tf.compat.v1.summary.scalar('policy_loss', policy_loss)
+                    tf.compat.v1.summary.scalar('qf1_loss', qf1_loss)
+                    tf.compat.v1.summary.scalar('qf2_loss', qf2_loss)
+                    tf.compat.v1.summary.scalar('learning_rate', tf.reduce_mean(input_tensor=self.learning_rate_ph))
 
                 # Retrieve parameters that must be saved
                 self.params = tf_util.get_trainable_vars("model")
@@ -234,10 +234,10 @@ class TD3(OffPolicyRLModel):
 
                 # Initialize Variables and target network
                 with self.sess.as_default():
-                    self.sess.run(tf.global_variables_initializer())
+                    self.sess.run(tf.compat.v1.global_variables_initializer())
                     self.sess.run(target_init_op)
 
-                self.summary = tf.summary.merge_all()
+                self.summary = tf.compat.v1.summary.merge_all()
 
     def _train_step(self, step, writer, learning_rate, update_policy):
         # Sample a batch from the replay buffer
@@ -408,10 +408,9 @@ class TD3(OffPolicyRLModel):
                 else:
                     mean_reward = round(float(np.mean(episode_rewards[-101:-1])), 1)
 
-                # substract 1 as we appended a new term just now
-                num_episodes = len(episode_rewards) - 1
+                num_episodes = len(episode_rewards)
                 # Display training infos
-                if self.verbose >= 1 and done and log_interval is not None and num_episodes % log_interval == 0:
+                if self.verbose >= 1 and done and log_interval is not None and len(episode_rewards) % log_interval == 0:
                     fps = int(step / (time.time() - start_time))
                     logger.logkv("episodes", num_episodes)
                     logger.logkv("mean 100 episode reward", mean_reward)

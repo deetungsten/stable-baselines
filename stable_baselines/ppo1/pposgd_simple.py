@@ -108,19 +108,19 @@ class PPO1(ActorCriticRLModel):
                                              None, reuse=False, **self.policy_kwargs)
 
                 # Network for old policy
-                with tf.variable_scope("oldpi", reuse=False):
+                with tf.compat.v1.variable_scope("oldpi", reuse=False):
                     old_pi = self.policy(self.sess, self.observation_space, self.action_space, self.n_envs, 1,
                                          None, reuse=False, **self.policy_kwargs)
 
-                with tf.variable_scope("loss", reuse=False):
+                with tf.compat.v1.variable_scope("loss", reuse=False):
                     # Target advantage function (if applicable)
-                    atarg = tf.placeholder(dtype=tf.float32, shape=[None])
+                    atarg = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None])
 
                     # Empirical return
-                    ret = tf.placeholder(dtype=tf.float32, shape=[None])
+                    ret = tf.compat.v1.placeholder(dtype=tf.float32, shape=[None])
 
                     # learning rate multiplier, updated with schedule
-                    lrmult = tf.placeholder(name='lrmult', dtype=tf.float32, shape=[])
+                    lrmult = tf.compat.v1.placeholder(name='lrmult', dtype=tf.float32, shape=[])
 
                     # Annealed cliping parameter epislon
                     clip_param = self.clip_param * lrmult
@@ -130,8 +130,8 @@ class PPO1(ActorCriticRLModel):
 
                     kloldnew = old_pi.proba_distribution.kl(self.policy_pi.proba_distribution)
                     ent = self.policy_pi.proba_distribution.entropy()
-                    meankl = tf.reduce_mean(kloldnew)
-                    meanent = tf.reduce_mean(ent)
+                    meankl = tf.reduce_mean(input_tensor=kloldnew)
+                    meanent = tf.reduce_mean(input_tensor=ent)
                     pol_entpen = (-self.entcoeff) * meanent
 
                     # pnew / pold
@@ -143,43 +143,43 @@ class PPO1(ActorCriticRLModel):
                     surr2 = tf.clip_by_value(ratio, 1.0 - clip_param, 1.0 + clip_param) * atarg
 
                     # PPO's pessimistic surrogate (L^CLIP)
-                    pol_surr = - tf.reduce_mean(tf.minimum(surr1, surr2))
-                    vf_loss = tf.reduce_mean(tf.square(self.policy_pi.value_flat - ret))
+                    pol_surr = - tf.reduce_mean(input_tensor=tf.minimum(surr1, surr2))
+                    vf_loss = tf.reduce_mean(input_tensor=tf.square(self.policy_pi.value_flat - ret))
                     total_loss = pol_surr + pol_entpen + vf_loss
                     losses = [pol_surr, pol_entpen, vf_loss, meankl, meanent]
                     self.loss_names = ["pol_surr", "pol_entpen", "vf_loss", "kl", "ent"]
 
-                    tf.summary.scalar('entropy_loss', pol_entpen)
-                    tf.summary.scalar('policy_gradient_loss', pol_surr)
-                    tf.summary.scalar('value_function_loss', vf_loss)
-                    tf.summary.scalar('approximate_kullback-leibler', meankl)
-                    tf.summary.scalar('clip_factor', clip_param)
-                    tf.summary.scalar('loss', total_loss)
+                    tf.compat.v1.summary.scalar('entropy_loss', pol_entpen)
+                    tf.compat.v1.summary.scalar('policy_gradient_loss', pol_surr)
+                    tf.compat.v1.summary.scalar('value_function_loss', vf_loss)
+                    tf.compat.v1.summary.scalar('approximate_kullback-leibler', meankl)
+                    tf.compat.v1.summary.scalar('clip_factor', clip_param)
+                    tf.compat.v1.summary.scalar('loss', total_loss)
 
                     self.params = tf_util.get_trainable_vars("model")
 
                     self.assign_old_eq_new = tf_util.function(
-                        [], [], updates=[tf.assign(oldv, newv) for (oldv, newv) in
+                        [], [], updates=[tf.compat.v1.assign(oldv, newv) for (oldv, newv) in
                                          zipsame(tf_util.get_globals_vars("oldpi"), tf_util.get_globals_vars("model"))])
 
-                with tf.variable_scope("Adam_mpi", reuse=False):
+                with tf.compat.v1.variable_scope("Adam_mpi", reuse=False):
                     self.adam = MpiAdam(self.params, epsilon=self.adam_epsilon, sess=self.sess)
 
-                with tf.variable_scope("input_info", reuse=False):
-                    tf.summary.scalar('discounted_rewards', tf.reduce_mean(ret))
-                    tf.summary.scalar('learning_rate', tf.reduce_mean(self.optim_stepsize))
-                    tf.summary.scalar('advantage', tf.reduce_mean(atarg))
-                    tf.summary.scalar('clip_range', tf.reduce_mean(self.clip_param))
+                with tf.compat.v1.variable_scope("input_info", reuse=False):
+                    tf.compat.v1.summary.scalar('discounted_rewards', tf.reduce_mean(input_tensor=ret))
+                    tf.compat.v1.summary.scalar('learning_rate', tf.reduce_mean(input_tensor=self.optim_stepsize))
+                    tf.compat.v1.summary.scalar('advantage', tf.reduce_mean(input_tensor=atarg))
+                    tf.compat.v1.summary.scalar('clip_range', tf.reduce_mean(input_tensor=self.clip_param))
 
                     if self.full_tensorboard_log:
-                        tf.summary.histogram('discounted_rewards', ret)
-                        tf.summary.histogram('learning_rate', self.optim_stepsize)
-                        tf.summary.histogram('advantage', atarg)
-                        tf.summary.histogram('clip_range', self.clip_param)
+                        tf.compat.v1.summary.histogram('discounted_rewards', ret)
+                        tf.compat.v1.summary.histogram('learning_rate', self.optim_stepsize)
+                        tf.compat.v1.summary.histogram('advantage', atarg)
+                        tf.compat.v1.summary.histogram('clip_range', self.clip_param)
                         if tf_util.is_image(self.observation_space):
-                            tf.summary.image('observation', obs_ph)
+                            tf.compat.v1.summary.image('observation', obs_ph)
                         else:
-                            tf.summary.histogram('observation', obs_ph)
+                            tf.compat.v1.summary.histogram('observation', obs_ph)
 
                 self.step = self.policy_pi.step
                 self.proba_step = self.policy_pi.proba_step
@@ -187,7 +187,7 @@ class PPO1(ActorCriticRLModel):
 
                 tf_util.initialize(sess=self.sess)
 
-                self.summary = tf.summary.merge_all()
+                self.summary = tf.compat.v1.summary.merge_all()
 
                 self.lossandgrad = tf_util.function([obs_ph, old_pi.obs_ph, action_ph, atarg, ret, lrmult],
                                                     [self.summary, tf_util.flatgrad(total_loss, self.params)] + losses)
@@ -283,8 +283,8 @@ class PPO1(ActorCriticRLModel):
                                 # run loss backprop with summary, but once every 10 runs save the metadata
                                 # (memory, compute time, ...)
                                 if self.full_tensorboard_log and (1 + k) % 10 == 0:
-                                    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                                    run_metadata = tf.RunMetadata()
+                                    run_options = tf.compat.v1.RunOptions(trace_level=tf.compat.v1.RunOptions.FULL_TRACE)
+                                    run_metadata = tf.compat.v1.RunMetadata()
                                     summary, grad, *newlosses = self.lossandgrad(batch["ob"], batch["ob"], batch["ac"],
                                                                                  batch["atarg"], batch["vtarg"],
                                                                                  cur_lrmult, sess=self.sess,

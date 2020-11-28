@@ -137,51 +137,51 @@ class A2C(ActorCriticRLModel):
                 step_model = self.policy(self.sess, self.observation_space, self.action_space, self.n_envs, 1,
                                          n_batch_step, reuse=False, **self.policy_kwargs)
 
-                with tf.variable_scope("train_model", reuse=True,
+                with tf.compat.v1.variable_scope("train_model", reuse=True,
                                        custom_getter=tf_util.outer_scope_getter("train_model")):
                     train_model = self.policy(self.sess, self.observation_space, self.action_space, self.n_envs,
                                               self.n_steps, n_batch_train, reuse=True, **self.policy_kwargs)
 
-                with tf.variable_scope("loss", reuse=False):
+                with tf.compat.v1.variable_scope("loss", reuse=False):
                     self.actions_ph = train_model.pdtype.sample_placeholder([None], name="action_ph")
-                    self.advs_ph = tf.placeholder(tf.float32, [None], name="advs_ph")
-                    self.rewards_ph = tf.placeholder(tf.float32, [None], name="rewards_ph")
-                    self.learning_rate_ph = tf.placeholder(tf.float32, [], name="learning_rate_ph")
+                    self.advs_ph = tf.compat.v1.placeholder(tf.float32, [None], name="advs_ph")
+                    self.rewards_ph = tf.compat.v1.placeholder(tf.float32, [None], name="rewards_ph")
+                    self.learning_rate_ph = tf.compat.v1.placeholder(tf.float32, [], name="learning_rate_ph")
 
                     neglogpac = train_model.proba_distribution.neglogp(self.actions_ph)
-                    self.entropy = tf.reduce_mean(train_model.proba_distribution.entropy())
-                    self.pg_loss = tf.reduce_mean(self.advs_ph * neglogpac)
+                    self.entropy = tf.reduce_mean(input_tensor=train_model.proba_distribution.entropy())
+                    self.pg_loss = tf.reduce_mean(input_tensor=self.advs_ph * neglogpac)
                     self.vf_loss = mse(tf.squeeze(train_model.value_flat), self.rewards_ph)
                     # https://arxiv.org/pdf/1708.04782.pdf#page=9, https://arxiv.org/pdf/1602.01783.pdf#page=4
                     # and https://github.com/dennybritz/reinforcement-learning/issues/34
                     # suggest to add an entropy component in order to improve exploration.
                     loss = self.pg_loss - self.entropy * self.ent_coef + self.vf_loss * self.vf_coef
 
-                    tf.summary.scalar('entropy_loss', self.entropy)
-                    tf.summary.scalar('policy_gradient_loss', self.pg_loss)
-                    tf.summary.scalar('value_function_loss', self.vf_loss)
-                    tf.summary.scalar('loss', loss)
+                    tf.compat.v1.summary.scalar('entropy_loss', self.entropy)
+                    tf.compat.v1.summary.scalar('policy_gradient_loss', self.pg_loss)
+                    tf.compat.v1.summary.scalar('value_function_loss', self.vf_loss)
+                    tf.compat.v1.summary.scalar('loss', loss)
 
                     self.params = tf_util.get_trainable_vars("model")
-                    grads = tf.gradients(loss, self.params)
+                    grads = tf.gradients(ys=loss, xs=self.params)
                     if self.max_grad_norm is not None:
                         grads, _ = tf.clip_by_global_norm(grads, self.max_grad_norm)
                     grads = list(zip(grads, self.params))
 
-                with tf.variable_scope("input_info", reuse=False):
-                    tf.summary.scalar('discounted_rewards', tf.reduce_mean(self.rewards_ph))
-                    tf.summary.scalar('learning_rate', tf.reduce_mean(self.learning_rate_ph))
-                    tf.summary.scalar('advantage', tf.reduce_mean(self.advs_ph))
+                with tf.compat.v1.variable_scope("input_info", reuse=False):
+                    tf.compat.v1.summary.scalar('discounted_rewards', tf.reduce_mean(input_tensor=self.rewards_ph))
+                    tf.compat.v1.summary.scalar('learning_rate', tf.reduce_mean(input_tensor=self.learning_rate_ph))
+                    tf.compat.v1.summary.scalar('advantage', tf.reduce_mean(input_tensor=self.advs_ph))
                     if self.full_tensorboard_log:
-                        tf.summary.histogram('discounted_rewards', self.rewards_ph)
-                        tf.summary.histogram('learning_rate', self.learning_rate_ph)
-                        tf.summary.histogram('advantage', self.advs_ph)
+                        tf.compat.v1.summary.histogram('discounted_rewards', self.rewards_ph)
+                        tf.compat.v1.summary.histogram('learning_rate', self.learning_rate_ph)
+                        tf.compat.v1.summary.histogram('advantage', self.advs_ph)
                         if tf_util.is_image(self.observation_space):
-                            tf.summary.image('observation', train_model.obs_ph)
+                            tf.compat.v1.summary.image('observation', train_model.obs_ph)
                         else:
-                            tf.summary.histogram('observation', train_model.obs_ph)
+                            tf.compat.v1.summary.histogram('observation', train_model.obs_ph)
 
-                trainer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate_ph, decay=self.alpha,
+                trainer = tf.compat.v1.train.RMSPropOptimizer(learning_rate=self.learning_rate_ph, decay=self.alpha,
                                                     epsilon=self.epsilon, momentum=self.momentum)
                 self.apply_backprop = trainer.apply_gradients(grads)
 
@@ -191,9 +191,9 @@ class A2C(ActorCriticRLModel):
                 self.proba_step = step_model.proba_step
                 self.value = step_model.value
                 self.initial_state = step_model.initial_state
-                tf.global_variables_initializer().run(session=self.sess)
+                tf.compat.v1.global_variables_initializer().run(session=self.sess)
 
-                self.summary = tf.summary.merge_all()
+                self.summary = tf.compat.v1.summary.merge_all()
 
     def _train_step(self, obs, states, rewards, masks, actions, values, update, writer=None):
         """
@@ -224,8 +224,8 @@ class A2C(ActorCriticRLModel):
         if writer is not None:
             # run loss backprop with summary, but once every 10 runs save the metadata (memory, compute time, ...)
             if self.full_tensorboard_log and (1 + update) % 10 == 0:
-                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                run_metadata = tf.RunMetadata()
+                run_options = tf.compat.v1.RunOptions(trace_level=tf.compat.v1.RunOptions.FULL_TRACE)
+                run_metadata = tf.compat.v1.RunMetadata()
                 summary, policy_loss, value_loss, policy_entropy, _ = self.sess.run(
                     [self.summary, self.pg_loss, self.vf_loss, self.entropy, self.apply_backprop],
                     td_map, options=run_options, run_metadata=run_metadata)

@@ -67,7 +67,7 @@ def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
     # Seed everything to make things reproducible.
     seed = seed + 1000000 * rank
     logger.info('rank {}: seed={}, logdir={}'.format(rank, seed, logger.get_dir()))
-    tf.reset_default_graph()
+    tf.compat.v1.reset_default_graph()
     set_global_seeds(seed)
     env.seed(seed)
     if eval_env is not None:

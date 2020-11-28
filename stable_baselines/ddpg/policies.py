@@ -127,18 +127,18 @@ class FeedForwardPolicy(DDPGPolicy):
         if obs is None:
             obs = self.processed_obs
 
-        with tf.variable_scope(scope, reuse=reuse):
+        with tf.compat.v1.variable_scope(scope, reuse=reuse):
             if self.feature_extraction == "cnn":
                 pi_h = self.cnn_extractor(obs, **self.cnn_kwargs)
             else:
-                pi_h = tf.layers.flatten(obs)
+                pi_h = tf.compat.v1.layers.flatten(obs)
             for i, layer_size in enumerate(self.layers):
-                pi_h = tf.layers.dense(pi_h, layer_size, name='fc' + str(i))
+                pi_h = tf.compat.v1.layers.dense(pi_h, layer_size, name='fc' + str(i))
                 if self.layer_norm:
                     pi_h = tf.contrib.layers.layer_norm(pi_h, center=True, scale=True)
                 pi_h = self.activ(pi_h)
-            self.policy = tf.nn.tanh(tf.layers.dense(pi_h, self.ac_space.shape[0], name=scope,
-                                                     kernel_initializer=tf.random_uniform_initializer(minval=-3e-3,
+            self.policy = tf.nn.tanh(tf.compat.v1.layers.dense(pi_h, self.ac_space.shape[0], name=scope,
+                                                     kernel_initializer=tf.compat.v1.random_uniform_initializer(minval=-3e-3,
                                                                                                       maxval=3e-3)))
         return self.policy
 
@@ -148,13 +148,13 @@ class FeedForwardPolicy(DDPGPolicy):
         if action is None:
             action = self.action_ph
 
-        with tf.variable_scope(scope, reuse=reuse):
+        with tf.compat.v1.variable_scope(scope, reuse=reuse):
             if self.feature_extraction == "cnn":
                 qf_h = self.cnn_extractor(obs, **self.cnn_kwargs)
             else:
-                qf_h = tf.layers.flatten(obs)
+                qf_h = tf.compat.v1.layers.flatten(obs)
             for i, layer_size in enumerate(self.layers):
-                qf_h = tf.layers.dense(qf_h, layer_size, name='fc' + str(i))
+                qf_h = tf.compat.v1.layers.dense(qf_h, layer_size, name='fc' + str(i))
                 if self.layer_norm:
                     qf_h = tf.contrib.layers.layer_norm(qf_h, center=True, scale=True)
                 qf_h = self.activ(qf_h)
@@ -162,8 +162,8 @@ class FeedForwardPolicy(DDPGPolicy):
                     qf_h = tf.concat([qf_h, action], axis=-1)
 
             # the name attribute is used in pop-art normalization
-            qvalue_fn = tf.layers.dense(qf_h, 1, name='qf_output',
-                                        kernel_initializer=tf.random_uniform_initializer(minval=-3e-3,
+            qvalue_fn = tf.compat.v1.layers.dense(qf_h, 1, name='qf_output',
+                                        kernel_initializer=tf.compat.v1.random_uniform_initializer(minval=-3e-3,
                                                                                          maxval=3e-3))
 
             self.qvalue_fn = qvalue_fn

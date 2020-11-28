@@ -22,7 +22,7 @@ def gmatmul(tensor_a, tensor_b, transpose_a=False, transpose_b=False, reduce_dim
             b_dims = list(range(len(b_shape)))
             b_dims.remove(reduce_dim)
             b_dims.insert(0, reduce_dim)
-            tensor_b = tf.transpose(tensor_b, b_dims)
+            tensor_b = tf.transpose(a=tensor_b, perm=b_dims)
         b_t_shape = tensor_b.get_shape()
         tensor_b = tf.reshape(tensor_b, [int(b_shape[reduce_dim]), -1])
         result = tf.matmul(tensor_a, tensor_b, transpose_a=transpose_a,
@@ -32,7 +32,7 @@ def gmatmul(tensor_a, tensor_b, transpose_a=False, transpose_b=False, reduce_dim
             b_dims = list(range(len(b_shape)))
             b_dims.remove(0)
             b_dims.insert(reduce_dim, 0)
-            result = tf.transpose(result, b_dims)
+            result = tf.transpose(a=result, perm=b_dims)
         return result
 
     elif len(tensor_a.get_shape()) > 2 and len(tensor_b.get_shape()) == 2:
@@ -44,7 +44,7 @@ def gmatmul(tensor_a, tensor_b, transpose_a=False, transpose_b=False, reduce_dim
             a_dims = list(range(len(a_shape)))
             a_dims.remove(reduce_dim)
             a_dims.insert(outter_dim, reduce_dim)
-            tensor_a = tf.transpose(tensor_a, a_dims)
+            tensor_a = tf.transpose(a=tensor_a, perm=a_dims)
         a_t_shape = tensor_a.get_shape()
         tensor_a = tf.reshape(tensor_a, [-1, int(a_shape[reduce_dim])])
         result = tf.matmul(tensor_a, tensor_b, transpose_a=transpose_a,
@@ -54,7 +54,7 @@ def gmatmul(tensor_a, tensor_b, transpose_a=False, transpose_b=False, reduce_dim
             a_dims = list(range(len(a_shape)))
             a_dims.remove(outter_dim)
             a_dims.insert(reduce_dim, outter_dim)
-            result = tf.transpose(result, a_dims)
+            result = tf.transpose(a=result, perm=a_dims)
         return result
 
     elif len(tensor_a.get_shape()) == 2 and len(tensor_b.get_shape()) == 2:
@@ -86,16 +86,16 @@ def detect_min_val(input_mat, var, threshold=1e-6, name='', debug=False):
     :param debug: (bool) debug function
     :return: (TensorFlow Tensor) clipped tensor
     """
-    eigen_min = tf.reduce_min(input_mat)
-    eigen_max = tf.reduce_max(input_mat)
+    eigen_min = tf.reduce_min(input_tensor=input_mat)
+    eigen_max = tf.reduce_max(input_tensor=input_mat)
     eigen_ratio = eigen_max / eigen_min
     input_mat_clipped = clipout_neg(input_mat, threshold)
 
     if debug:
-        input_mat_clipped = tf.cond(tf.logical_or(tf.greater(eigen_ratio, 0.), tf.less(eigen_ratio, -500)),
-                                    lambda: input_mat_clipped, lambda: tf.Print(
+        input_mat_clipped = tf.cond(pred=tf.logical_or(tf.greater(eigen_ratio, 0.), tf.less(eigen_ratio, -500)),
+                                    true_fn=lambda: input_mat_clipped, false_fn=lambda: tf.compat.v1.Print(
                 input_mat_clipped,
-                [tf.convert_to_tensor('odd ratio ' + name + ' eigen values!!!'), tf.convert_to_tensor(var.name),
+                [tf.convert_to_tensor(value='odd ratio ' + name + ' eigen values!!!'), tf.convert_to_tensor(value=var.name),
                  eigen_min, eigen_max, eigen_ratio]))
 
     return input_mat_clipped

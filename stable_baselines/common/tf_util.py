@@ -49,7 +49,7 @@ def seq_to_batch(tensor_sequence, flat=False):
     shape = tensor_sequence[0].get_shape().as_list()
     if not flat:
         assert len(shape) > 1
-        n_hidden = tensor_sequence[0].get_shape()[-1].value
+        n_hidden = tensor_sequence[0].get_shape()[-1]
         return tf.reshape(tf.concat(axis=1, values=tensor_sequence), [-1, n_hidden])
     else:
         return tf.reshape(tf.stack(values=tensor_sequence, axis=1), [-1])
@@ -80,7 +80,7 @@ def huber_loss(tensor, delta=1.0):
     :param delta: (float) Huber loss delta value
     :return: (TensorFlow Tensor) Huber loss output
     """
-    return tf.where(
+    return tf.compat.v1.where(
         tf.abs(tensor) < delta,
         tf.square(tensor) * 0.5,
         delta * (tf.abs(tensor) - 0.5 * delta)
@@ -96,8 +96,8 @@ def sample(logits):
     :param logits: (TensorFlow Tensor) The input probability for each action
     :return: (TensorFlow Tensor) The sampled action
     """
-    noise = tf.random_uniform(tf.shape(logits))
-    return tf.argmax(logits - tf.log(-tf.log(noise)), 1)
+    noise = tf.random.uniform(tf.shape(input=logits))
+    return tf.argmax(input=logits - tf.math.log(-tf.math.log(noise)), axis=1)
 
 
 def calc_entropy(logits):
@@ -108,11 +108,11 @@ def calc_entropy(logits):
     :return: (TensorFlow Tensor) The Entropy of the output values of the network
     """
     # Compute softmax
-    a_0 = logits - tf.reduce_max(logits, 1, keepdims=True)
+    a_0 = logits - tf.reduce_max(input_tensor=logits, axis=1, keepdims=True)
     exp_a_0 = tf.exp(a_0)
-    z_0 = tf.reduce_sum(exp_a_0, 1, keepdims=True)
+    z_0 = tf.reduce_sum(input_tensor=exp_a_0, axis=1, keepdims=True)
     p_0 = exp_a_0 / z_0
-    return tf.reduce_sum(p_0 * (tf.log(z_0) - a_0), 1)
+    return tf.reduce_sum(input_tensor=p_0 * (tf.math.log(z_0) - a_0), axis=1)
 
 
 def mse(pred, target):
@@ -123,7 +123,7 @@ def mse(pred, target):
     :param target: (TensorFlow Tensor) The target value
     :return: (TensorFlow Tensor) The Mean squared error between prediction and target
     """
-    return tf.reduce_mean(tf.square(pred - target))
+    return tf.reduce_mean(input_tensor=tf.square(pred - target))
 
 
 def avg_norm(tensor):
@@ -133,7 +133,7 @@ def avg_norm(tensor):
     :param tensor: (TensorFlow Tensor) The input tensor
     :return: (TensorFlow Tensor) Average L2 normalization of the batch
     """
-    return tf.reduce_mean(tf.sqrt(tf.reduce_sum(tf.square(tensor), axis=-1)))
+    return tf.reduce_mean(input_tensor=tf.sqrt(tf.reduce_sum(input_tensor=tf.square(tensor), axis=-1)))
 
 
 def gradient_add(grad_1, grad_2, param, verbose=0):
@@ -166,8 +166,8 @@ def q_explained_variance(q_pred, q_true):
     :param q_true: (TensorFlow Tensor) The expected Q value
     :return: (TensorFlow Tensor) the explained variance of the Q value
     """
-    _, var_y = tf.nn.moments(q_true, axes=[0, 1])
-    _, var_pred = tf.nn.moments(q_true - q_pred, axes=[0, 1])
+    _, var_y = tf.nn.moments(x=q_true, axes=[0, 1])
+    _, var_pred = tf.nn.moments(x=q_true - q_pred, axes=[0, 1])
     check_shape([var_y, var_pred], [[]] * 2)
     return 1.0 - (var_pred / var_y)
 
@@ -188,16 +188,16 @@ def make_session(num_cpu=None, make_default=False, graph=None):
     """
     if num_cpu is None:
         num_cpu = int(os.getenv('RCALL_NUM_CPU', multiprocessing.cpu_count()))
-    tf_config = tf.ConfigProto(
+    tf_config = tf.compat.v1.ConfigProto(
         allow_soft_placement=True,
         inter_op_parallelism_threads=num_cpu,
         intra_op_parallelism_threads=num_cpu)
     # Prevent tensorflow from taking all the gpu memory
     tf_config.gpu_options.allow_growth = True
     if make_default:
-        return tf.InteractiveSession(config=tf_config, graph=graph)
+        return tf.compat.v1.InteractiveSession(config=tf_config, graph=graph)
     else:
-        return tf.Session(config=tf_config, graph=graph)
+        return tf.compat.v1.Session(config=tf_config, graph=graph)
 
 
 def single_threaded_session(make_default=False, graph=None):
@@ -221,7 +221,7 @@ def in_session(func):
 
     @functools.wraps(func)
     def newfunc(*args, **kwargs):
-        with tf.Session():
+        with tf.compat.v1.Session():
             func(*args, **kwargs)
 
     return newfunc
@@ -237,9 +237,9 @@ def initialize(sess=None):
     :param sess: (TensorFlow Session)
     """
     if sess is None:
-        sess = tf.get_default_session()
-    new_variables = set(tf.global_variables()) - ALREADY_INITIALIZED
-    sess.run(tf.variables_initializer(new_variables))
+        sess = tf.compat.v1.get_default_session()
+    new_variables = set(tf.compat.v1.global_variables()) - ALREADY_INITIALIZED
+    sess.run(tf.compat.v1.variables_initializer(new_variables))
     ALREADY_INITIALIZED.update(new_variables)
 
 
@@ -319,7 +319,7 @@ class _Function(object):
     def __call__(self, *args, sess=None, **kwargs):
         assert len(args) <= len(self.inputs), "Too many arguments provided"
         if sess is None:
-            sess = tf.get_default_session()
+            sess = tf.compat.v1.get_default_session()
         feed_dict = {}
         # Update the args
         for inpt, value in zip(self.inputs, args):
@@ -378,7 +378,7 @@ def flatgrad(loss, var_list, clip_norm=None):
     :param clip_norm: (float) clip the gradients (disabled if None)
     :return: ([TensorFlow Tensor]) flattened gradient
     """
-    grads = tf.gradients(loss, var_list)
+    grads = tf.gradients(ys=loss, xs=var_list)
     if clip_norm is not None:
         grads = [tf.clip_by_norm(grad, clip_norm=clip_norm) for grad in grads]
     return tf.concat(axis=0, values=[
@@ -399,19 +399,19 @@ class SetFromFlat(object):
         shapes = list(map(var_shape, var_list))
         total_size = np.sum([intprod(shape) for shape in shapes])
 
-        self.theta = theta = tf.placeholder(dtype, [total_size])
+        self.theta = theta = tf.compat.v1.placeholder(dtype, [total_size])
         start = 0
         assigns = []
         for (shape, _var) in zip(shapes, var_list):
             size = intprod(shape)
-            assigns.append(tf.assign(_var, tf.reshape(theta[start:start + size], shape)))
+            assigns.append(tf.compat.v1.assign(_var, tf.reshape(theta[start:start + size], shape)))
             start += size
         self.operation = tf.group(*assigns)
         self.sess = sess
 
     def __call__(self, theta):
         if self.sess is None:
-            return tf.get_default_session().run(self.operation, feed_dict={self.theta: theta})
+            return tf.compat.v1.get_default_session().run(self.operation, feed_dict={self.theta: theta})
         else:
             return self.sess.run(self.operation, feed_dict={self.theta: theta})
 
@@ -429,7 +429,7 @@ class GetFlat(object):
 
     def __call__(self):
         if self.sess is None:
-            return tf.get_default_session().run(self.operation)
+            return tf.compat.v1.get_default_session().run(self.operation)
         else:
             return self.sess.run(self.operation)
 
@@ -446,7 +446,7 @@ def get_trainable_vars(name):
     :param name: (str) the scope
     :return: ([TensorFlow Variable])
     """
-    return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=name)
+    return tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope=name)
 
 
 def get_globals_vars(name):
@@ -456,7 +456,7 @@ def get_globals_vars(name):
     :param name: (str) the scope
     :return: ([TensorFlow Variable])
     """
-    return tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=name)
+    return tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope=name)
 
 
 def outer_scope_getter(scope, new_scope=""):
@@ -491,7 +491,7 @@ def total_episode_reward_logger(rew_acc, rewards, masks, writer, steps):
     :return: (np.array float) the updated total running reward
     :return: (np.array float) the updated total running reward
     """
-    with tf.variable_scope("environment_info", reuse=True):
+    with tf.compat.v1.variable_scope("environment_info", reuse=True):
         for env_idx in range(rewards.shape[0]):
             dones_idx = np.sort(np.argwhere(masks[env_idx]))
 
@@ -499,11 +499,11 @@ def total_episode_reward_logger(rew_acc, rewards, masks, writer, steps):
                 rew_acc[env_idx] += sum(rewards[env_idx])
             else:
                 rew_acc[env_idx] += sum(rewards[env_idx, :dones_idx[0, 0]])
-                summary = tf.Summary(value=[tf.Summary.Value(tag="episode_reward", simple_value=rew_acc[env_idx])])
+                summary = tf.compat.v1.Summary(value=[tf.compat.v1.Summary.Value(tag="episode_reward", simple_value=rew_acc[env_idx])])
                 writer.add_summary(summary, steps + dones_idx[0, 0])
                 for k in range(1, len(dones_idx[:, 0])):
                     rew_acc[env_idx] = sum(rewards[env_idx, dones_idx[k - 1, 0]:dones_idx[k, 0]])
-                    summary = tf.Summary(value=[tf.Summary.Value(tag="episode_reward", simple_value=rew_acc[env_idx])])
+                    summary = tf.compat.v1.Summary(value=[tf.compat.v1.Summary.Value(tag="episode_reward", simple_value=rew_acc[env_idx])])
                     writer.add_summary(summary, steps + dones_idx[k, 0])
                 rew_acc[env_idx] = sum(rewards[env_idx, dones_idx[-1, 0]:])
 

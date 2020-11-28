@@ -14,20 +14,20 @@ class RunningMeanStd(object):
         :param epsilon: (float) helps with arithmetic issues
         :param shape: (tuple) the shape of the data stream's output
         """
-        self._sum = tf.get_variable(
+        self._sum = tf.compat.v1.get_variable(
             dtype=tf.float64,
             shape=shape,
-            initializer=tf.constant_initializer(0.0),
+            initializer=tf.compat.v1.constant_initializer(0.0),
             name="runningsum", trainable=False)
-        self._sumsq = tf.get_variable(
+        self._sumsq = tf.compat.v1.get_variable(
             dtype=tf.float64,
             shape=shape,
-            initializer=tf.constant_initializer(epsilon),
+            initializer=tf.compat.v1.constant_initializer(epsilon),
             name="runningsumsq", trainable=False)
-        self._count = tf.get_variable(
+        self._count = tf.compat.v1.get_variable(
             dtype=tf.float64,
             shape=(),
-            initializer=tf.constant_initializer(epsilon),
+            initializer=tf.compat.v1.constant_initializer(epsilon),
             name="count", trainable=False)
         self.shape = shape
 
@@ -35,13 +35,13 @@ class RunningMeanStd(object):
         self.std = tf.sqrt(tf.maximum(tf.cast(self._sumsq / self._count, tf.float32) - tf.square(self.mean),
                                       1e-2))
 
-        newsum = tf.placeholder(shape=self.shape, dtype=tf.float64, name='sum')
-        newsumsq = tf.placeholder(shape=self.shape, dtype=tf.float64, name='var')
-        newcount = tf.placeholder(shape=[], dtype=tf.float64, name='count')
+        newsum = tf.compat.v1.placeholder(shape=self.shape, dtype=tf.float64, name='sum')
+        newsumsq = tf.compat.v1.placeholder(shape=self.shape, dtype=tf.float64, name='var')
+        newcount = tf.compat.v1.placeholder(shape=[], dtype=tf.float64, name='count')
         self.incfiltparams = tf_util.function([newsum, newsumsq, newcount], [],
-                                              updates=[tf.assign_add(self._sum, newsum),
-                                                       tf.assign_add(self._sumsq, newsumsq),
-                                                       tf.assign_add(self._count, newcount)])
+                                              updates=[tf.compat.v1.assign_add(self._sum, newsum),
+                                                       tf.compat.v1.assign_add(self._sumsq, newsumsq),
+                                                       tf.compat.v1.assign_add(self._count, newcount)])
 
     def update(self, data):
         """

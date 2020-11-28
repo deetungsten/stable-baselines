@@ -286,12 +286,12 @@ class ACER(ActorCriticRLModel):
 
                 self.params = tf_util.get_trainable_vars("model")
 
-                with tf.variable_scope("train_model", reuse=True,
+                with tf.compat.v1.variable_scope("train_model", reuse=True,
                                        custom_getter=tf_util.outer_scope_getter("train_model")):
                     train_model = self.policy(self.sess, self.observation_space, self.action_space, self.n_envs,
                                               self.n_steps + 1, n_batch_train, reuse=True, **self.policy_kwargs)
 
-                with tf.variable_scope("moving_average"):
+                with tf.compat.v1.variable_scope("moving_average"):
                     # create averaged model
                     ema = tf.train.ExponentialMovingAverage(self.alpha)
                     ema_apply_op = ema.apply(self.params)
@@ -301,18 +301,18 @@ class ACER(ActorCriticRLModel):
                         val = ema.average(getter(name, *args, **kwargs))
                         return val
 
-                with tf.variable_scope("polyak_model", reuse=True, custom_getter=custom_getter):
+                with tf.compat.v1.variable_scope("polyak_model", reuse=True, custom_getter=custom_getter):
                     self.polyak_model = polyak_model = self.policy(self.sess, self.observation_space, self.action_space,
                                                                    self.n_envs, self.n_steps + 1,
                                                                    self.n_envs * (self.n_steps + 1), reuse=True,
                                                                    **self.policy_kwargs)
 
-                with tf.variable_scope("loss", reuse=False):
-                    self.done_ph = tf.placeholder(tf.float32, [self.n_batch])  # dones
-                    self.reward_ph = tf.placeholder(tf.float32, [self.n_batch])  # rewards, not returns
-                    self.mu_ph = tf.placeholder(tf.float32, [self.n_batch, self.n_act])  # mu's
+                with tf.compat.v1.variable_scope("loss", reuse=False):
+                    self.done_ph = tf.compat.v1.placeholder(tf.float32, [self.n_batch])  # dones
+                    self.reward_ph = tf.compat.v1.placeholder(tf.float32, [self.n_batch])  # rewards, not returns
+                    self.mu_ph = tf.compat.v1.placeholder(tf.float32, [self.n_batch, self.n_act])  # mu's
                     self.action_ph = train_model.pdtype.sample_placeholder([self.n_batch])
-                    self.learning_rate_ph = tf.placeholder(tf.float32, [])
+                    self.learning_rate_ph = tf.compat.v1.placeholder(tf.float32, [])
                     eps = 1e-6
 
                     # Notation: (var) = batch variable, (var)s = sequence variable,
@@ -321,7 +321,7 @@ class ACER(ActorCriticRLModel):
                     if continuous:
                         value = train_model.value_flat
                     else:
-                        value = tf.reduce_sum(train_model.policy_proba * train_model.q_value, axis=-1)
+                        value = tf.reduce_sum(input_tensor=train_model.policy_proba * train_model.q_value, axis=-1)
 
                     rho, rho_i_ = None, None
                     if continuous:
@@ -373,7 +373,7 @@ class ACER(ActorCriticRLModel):
 
                     # Calculate losses
                     # Entropy
-                    entropy = tf.reduce_sum(train_model.proba_distribution.entropy())
+                    entropy = tf.reduce_sum(input_tensor=train_model.proba_distribution.entropy())
 
                     # Policy Gradient loss, with truncated importance sampling & bias correction
                     value = strip(value, self.n_envs, self.n_steps, True)
@@ -382,10 +382,10 @@ class ACER(ActorCriticRLModel):
 
                     # Truncated importance sampling
                     adv = qret - value
-                    log_f = tf.log(f_i + eps)
+                    log_f = tf.math.log(f_i + eps)
                     # [n_envs * n_steps]
                     gain_f = log_f * tf.stop_gradient(adv * tf.minimum(self.correction_term, rho_i))
-                    loss_f = -tf.reduce_mean(gain_f)
+                    loss_f = -tf.reduce_mean(input_tensor=gain_f)
 
                     # Bias correction for the truncation
                     adv_bc = (q_value - tf.reshape(value, [self.n_envs * self.n_steps, 1]))  # [n_envs * n_steps, n_act]
@@ -396,15 +396,15 @@ class ACER(ActorCriticRLModel):
                                                    tf.nn.relu(1.0 - (self.correction_term / (rho_i_ + eps))) *
                                                    f_i_)
                     else:
-                        log_f_bc = tf.log(f_i_ + eps)  # / (f_old + eps)
-                        gain_bc = tf.reduce_sum(log_f_bc *
+                        log_f_bc = tf.math.log(f_i_ + eps)  # / (f_old + eps)
+                        gain_bc = tf.reduce_sum(input_tensor=log_f_bc *
                                                 tf.stop_gradient(
                                                     adv_bc *
                                                     tf.nn.relu(1.0 - (self.correction_term / (rho + eps))) *
                                                     f_i_),
                                                 axis=1)
                     # IMP: This is sum, as expectation wrt f
-                    loss_bc = -tf.reduce_mean(gain_bc)
+                    loss_bc = -tf.reduce_mean(input_tensor=gain_bc)
 
                     loss_policy = loss_f + loss_bc
 
@@ -412,71 +412,71 @@ class ACER(ActorCriticRLModel):
                     check_shape([qret, q_i], [[self.n_envs * self.n_steps]] * 2)
                     explained_variance = q_explained_variance(tf.reshape(q_i, [self.n_envs, self.n_steps]),
                                                               tf.reshape(qret, [self.n_envs, self.n_steps]))
-                    loss_q = tf.reduce_mean(tf.square(tf.stop_gradient(qret) - q_i) * 0.5)
+                    loss_q = tf.reduce_mean(input_tensor=tf.square(tf.stop_gradient(qret) - q_i) * 0.5)
 
                     # Net loss
                     check_shape([loss_policy, loss_q, entropy], [[]] * 3)
                     loss = loss_policy + self.q_coef * loss_q - self.ent_coef * entropy
 
-                    tf.summary.scalar('entropy_loss', entropy)
-                    tf.summary.scalar('policy_gradient_loss', loss_policy)
-                    tf.summary.scalar('value_function_loss', loss_q)
-                    tf.summary.scalar('loss', loss)
+                    tf.compat.v1.summary.scalar('entropy_loss', entropy)
+                    tf.compat.v1.summary.scalar('policy_gradient_loss', loss_policy)
+                    tf.compat.v1.summary.scalar('value_function_loss', loss_q)
+                    tf.compat.v1.summary.scalar('loss', loss)
 
                     norm_grads_q, norm_grads_policy, avg_norm_grads_f = None, None, None
                     avg_norm_k, avg_norm_g, avg_norm_k_dot_g, avg_norm_adj = None, None, None, None
                     if self.trust_region:
                         # [n_envs * n_steps, n_act]
-                        grad = tf.gradients(- (loss_policy - self.ent_coef * entropy) * self.n_steps * self.n_envs,
-                                            phi_i)
+                        grad = tf.gradients(ys=- (loss_policy - self.ent_coef * entropy) * self.n_steps * self.n_envs,
+                                            xs=phi_i)
                         # [n_envs * n_steps, n_act] # Directly computed gradient of KL divergence wrt f
                         kl_grad = - f_polyak_i / (f_i_ + eps)
-                        k_dot_g = tf.reduce_sum(kl_grad * grad, axis=-1)
-                        adj = tf.maximum(0.0, (tf.reduce_sum(kl_grad * grad, axis=-1) - self.delta) / (
-                                tf.reduce_sum(tf.square(kl_grad), axis=-1) + eps))  # [n_envs * n_steps]
+                        k_dot_g = tf.reduce_sum(input_tensor=kl_grad * grad, axis=-1)
+                        adj = tf.maximum(0.0, (tf.reduce_sum(input_tensor=kl_grad * grad, axis=-1) - self.delta) / (
+                                tf.reduce_sum(input_tensor=tf.square(kl_grad), axis=-1) + eps))  # [n_envs * n_steps]
 
                         # Calculate stats (before doing adjustment) for logging.
                         avg_norm_k = avg_norm(kl_grad)
                         avg_norm_g = avg_norm(grad)
-                        avg_norm_k_dot_g = tf.reduce_mean(tf.abs(k_dot_g))
-                        avg_norm_adj = tf.reduce_mean(tf.abs(adj))
+                        avg_norm_k_dot_g = tf.reduce_mean(input_tensor=tf.abs(k_dot_g))
+                        avg_norm_adj = tf.reduce_mean(input_tensor=tf.abs(adj))
 
                         grad = grad - tf.reshape(adj, [self.n_envs * self.n_steps, 1]) * kl_grad
                         # These are turst region adjusted gradients wrt f ie statistics of policy pi
                         grads_f = -grad / (self.n_envs * self.n_steps)
-                        grads_policy = tf.gradients(f_i_, self.params, grads_f)
-                        grads_q = tf.gradients(loss_q * self.q_coef, self.params)
+                        grads_policy = tf.gradients(ys=f_i_, xs=self.params, grad_ys=grads_f)
+                        grads_q = tf.gradients(ys=loss_q * self.q_coef, xs=self.params)
                         grads = [gradient_add(g1, g2, param, verbose=self.verbose)
                                  for (g1, g2, param) in zip(grads_policy, grads_q, self.params)]
 
                         avg_norm_grads_f = avg_norm(grads_f) * (self.n_steps * self.n_envs)
-                        norm_grads_q = tf.global_norm(grads_q)
-                        norm_grads_policy = tf.global_norm(grads_policy)
+                        norm_grads_q = tf.linalg.global_norm(grads_q)
+                        norm_grads_policy = tf.linalg.global_norm(grads_policy)
                     else:
-                        grads = tf.gradients(loss, self.params)
+                        grads = tf.gradients(ys=loss, xs=self.params)
 
                     norm_grads = None
                     if self.max_grad_norm is not None:
                         grads, norm_grads = tf.clip_by_global_norm(grads, self.max_grad_norm)
                     grads = list(zip(grads, self.params))
 
-                with tf.variable_scope("input_info", reuse=False):
-                    tf.summary.scalar('rewards', tf.reduce_mean(self.reward_ph))
-                    tf.summary.scalar('learning_rate', tf.reduce_mean(self.learning_rate))
-                    tf.summary.scalar('advantage', tf.reduce_mean(adv))
-                    tf.summary.scalar('action_probability', tf.reduce_mean(self.mu_ph))
+                with tf.compat.v1.variable_scope("input_info", reuse=False):
+                    tf.compat.v1.summary.scalar('rewards', tf.reduce_mean(input_tensor=self.reward_ph))
+                    tf.compat.v1.summary.scalar('learning_rate', tf.reduce_mean(input_tensor=self.learning_rate))
+                    tf.compat.v1.summary.scalar('advantage', tf.reduce_mean(input_tensor=adv))
+                    tf.compat.v1.summary.scalar('action_probability', tf.reduce_mean(input_tensor=self.mu_ph))
 
                     if self.full_tensorboard_log:
-                        tf.summary.histogram('rewards', self.reward_ph)
-                        tf.summary.histogram('learning_rate', self.learning_rate)
-                        tf.summary.histogram('advantage', adv)
-                        tf.summary.histogram('action_probability', self.mu_ph)
+                        tf.compat.v1.summary.histogram('rewards', self.reward_ph)
+                        tf.compat.v1.summary.histogram('learning_rate', self.learning_rate)
+                        tf.compat.v1.summary.histogram('advantage', adv)
+                        tf.compat.v1.summary.histogram('action_probability', self.mu_ph)
                         if tf_util.is_image(self.observation_space):
-                            tf.summary.image('observation', train_model.obs_ph)
+                            tf.compat.v1.summary.image('observation', train_model.obs_ph)
                         else:
-                            tf.summary.histogram('observation', train_model.obs_ph)
+                            tf.compat.v1.summary.histogram('observation', train_model.obs_ph)
 
-                trainer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate_ph, decay=self.rprop_alpha,
+                trainer = tf.compat.v1.train.RMSPropOptimizer(learning_rate=self.learning_rate_ph, decay=self.rprop_alpha,
                                                     epsilon=self.rprop_epsilon)
                 _opt_op = trainer.apply_gradients(grads)
 
@@ -501,9 +501,9 @@ class ACER(ActorCriticRLModel):
                 self.proba_step = step_model.proba_step
                 self.initial_state = step_model.initial_state
 
-                tf.global_variables_initializer().run(session=self.sess)
+                tf.compat.v1.global_variables_initializer().run(session=self.sess)
 
-                self.summary = tf.summary.merge_all()
+                self.summary = tf.compat.v1.summary.merge_all()
 
     def _train_step(self, obs, actions, rewards, dones, mus, states, masks, steps, writer=None):
         """
@@ -533,8 +533,8 @@ class ACER(ActorCriticRLModel):
         if writer is not None:
             # run loss backprop with summary, but once every 10 runs save the metadata (memory, compute time, ...)
             if self.full_tensorboard_log and (1 + (steps / self.n_batch)) % 10 == 0:
-                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                run_metadata = tf.RunMetadata()
+                run_options = tf.compat.v1.RunOptions(trace_level=tf.compat.v1.RunOptions.FULL_TRACE)
+                run_metadata = tf.compat.v1.RunMetadata()
                 step_return = self.sess.run([self.summary] + self.run_ops, td_map, options=run_options,
                                             run_metadata=run_metadata)
                 writer.add_run_metadata(run_metadata, 'step%d' % steps)

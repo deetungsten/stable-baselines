@@ -150,58 +150,58 @@ class ACKTR(ActorCriticRLModel):
 
                 self.params = params = tf_util.get_trainable_vars("model")
 
-                with tf.variable_scope("train_model", reuse=True,
+                with tf.compat.v1.variable_scope("train_model", reuse=True,
                                        custom_getter=tf_util.outer_scope_getter("train_model")):
                     train_model = self.policy(self.sess, self.observation_space, self.action_space,
                                               self.n_envs, self.n_steps, n_batch_train,
                                               reuse=True, **self.policy_kwargs)
 
-                with tf.variable_scope("loss", reuse=False, custom_getter=tf_util.outer_scope_getter("loss")):
-                    self.advs_ph = advs_ph = tf.placeholder(tf.float32, [None])
-                    self.rewards_ph = rewards_ph = tf.placeholder(tf.float32, [None])
-                    self.learning_rate_ph = learning_rate_ph = tf.placeholder(tf.float32, [])
+                with tf.compat.v1.variable_scope("loss", reuse=False, custom_getter=tf_util.outer_scope_getter("loss")):
+                    self.advs_ph = advs_ph = tf.compat.v1.placeholder(tf.float32, [None])
+                    self.rewards_ph = rewards_ph = tf.compat.v1.placeholder(tf.float32, [None])
+                    self.learning_rate_ph = learning_rate_ph = tf.compat.v1.placeholder(tf.float32, [])
                     self.actions_ph = train_model.pdtype.sample_placeholder([None])
 
                     neg_log_prob = train_model.proba_distribution.neglogp(self.actions_ph)
 
                     # training loss
-                    pg_loss = tf.reduce_mean(advs_ph * neg_log_prob)
-                    self.entropy = entropy = tf.reduce_mean(train_model.proba_distribution.entropy())
+                    pg_loss = tf.reduce_mean(input_tensor=advs_ph * neg_log_prob)
+                    self.entropy = entropy = tf.reduce_mean(input_tensor=train_model.proba_distribution.entropy())
                     self.pg_loss = pg_loss = pg_loss - self.ent_coef * entropy
                     self.vf_loss = vf_loss = mse(tf.squeeze(train_model.value_fn), rewards_ph)
                     train_loss = pg_loss + self.vf_coef * vf_loss
 
                     # Fisher loss construction
-                    self.pg_fisher = pg_fisher_loss = -tf.reduce_mean(neg_log_prob)
-                    sample_net = train_model.value_fn + tf.random_normal(tf.shape(train_model.value_fn))
+                    self.pg_fisher = pg_fisher_loss = -tf.reduce_mean(input_tensor=neg_log_prob)
+                    sample_net = train_model.value_fn + tf.random.normal(tf.shape(input=train_model.value_fn))
                     self.vf_fisher = vf_fisher_loss = - self.vf_fisher_coef * tf.reduce_mean(
-                        tf.pow(train_model.value_fn - tf.stop_gradient(sample_net), 2))
+                        input_tensor=tf.pow(train_model.value_fn - tf.stop_gradient(sample_net), 2))
                     self.joint_fisher = pg_fisher_loss + vf_fisher_loss
 
-                    tf.summary.scalar('entropy_loss', self.entropy)
-                    tf.summary.scalar('policy_gradient_loss', pg_loss)
-                    tf.summary.scalar('policy_gradient_fisher_loss', pg_fisher_loss)
-                    tf.summary.scalar('value_function_loss', self.vf_loss)
-                    tf.summary.scalar('value_function_fisher_loss', vf_fisher_loss)
-                    tf.summary.scalar('loss', train_loss)
+                    tf.compat.v1.summary.scalar('entropy_loss', self.entropy)
+                    tf.compat.v1.summary.scalar('policy_gradient_loss', pg_loss)
+                    tf.compat.v1.summary.scalar('policy_gradient_fisher_loss', pg_fisher_loss)
+                    tf.compat.v1.summary.scalar('value_function_loss', self.vf_loss)
+                    tf.compat.v1.summary.scalar('value_function_fisher_loss', vf_fisher_loss)
+                    tf.compat.v1.summary.scalar('loss', train_loss)
 
-                    self.grads_check = tf.gradients(train_loss, params)
+                    self.grads_check = tf.gradients(ys=train_loss, xs=params)
 
-                with tf.variable_scope("input_info", reuse=False):
-                    tf.summary.scalar('discounted_rewards', tf.reduce_mean(self.rewards_ph))
-                    tf.summary.scalar('learning_rate', tf.reduce_mean(self.learning_rate_ph))
-                    tf.summary.scalar('advantage', tf.reduce_mean(self.advs_ph))
+                with tf.compat.v1.variable_scope("input_info", reuse=False):
+                    tf.compat.v1.summary.scalar('discounted_rewards', tf.reduce_mean(input_tensor=self.rewards_ph))
+                    tf.compat.v1.summary.scalar('learning_rate', tf.reduce_mean(input_tensor=self.learning_rate_ph))
+                    tf.compat.v1.summary.scalar('advantage', tf.reduce_mean(input_tensor=self.advs_ph))
 
                     if self.full_tensorboard_log:
-                        tf.summary.histogram('discounted_rewards', self.rewards_ph)
-                        tf.summary.histogram('learning_rate', self.learning_rate_ph)
-                        tf.summary.histogram('advantage', self.advs_ph)
+                        tf.compat.v1.summary.histogram('discounted_rewards', self.rewards_ph)
+                        tf.compat.v1.summary.histogram('learning_rate', self.learning_rate_ph)
+                        tf.compat.v1.summary.histogram('advantage', self.advs_ph)
                         if tf_util.is_image(self.observation_space):
-                            tf.summary.image('observation', train_model.obs_ph)
+                            tf.compat.v1.summary.image('observation', train_model.obs_ph)
                         else:
-                            tf.summary.histogram('observation', train_model.obs_ph)
+                            tf.compat.v1.summary.histogram('observation', train_model.obs_ph)
 
-                with tf.variable_scope("kfac", reuse=False, custom_getter=tf_util.outer_scope_getter("kfac")):
+                with tf.compat.v1.variable_scope("kfac", reuse=False, custom_getter=tf_util.outer_scope_getter("kfac")):
                     with tf.device('/gpu:0'):
                         self.optim = optim = kfac.KfacOptimizer(learning_rate=learning_rate_ph, clip_kl=self.kfac_clip,
                                                                 momentum=0.9, kfac_update=self.kfac_update,
@@ -218,9 +218,9 @@ class ACKTR(ActorCriticRLModel):
                 self.proba_step = step_model.proba_step
                 self.value = step_model.value
                 self.initial_state = step_model.initial_state
-                tf.global_variables_initializer().run(session=self.sess)
+                tf.compat.v1.global_variables_initializer().run(session=self.sess)
 
-                self.summary = tf.summary.merge_all()
+                self.summary = tf.compat.v1.summary.merge_all()
 
     def _train_step(self, obs, states, rewards, masks, actions, values, update, writer):
         """
@@ -266,8 +266,8 @@ class ACKTR(ActorCriticRLModel):
         if writer is not None:
             # run loss backprop with summary, but once every 10 runs save the metadata (memory, compute time, ...)
             if self.full_tensorboard_log and (1 + update) % 10 == 0:
-                run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-                run_metadata = tf.RunMetadata()
+                run_options = tf.compat.v1.RunOptions(trace_level=tf.compat.v1.RunOptions.FULL_TRACE)
+                run_metadata = tf.compat.v1.RunMetadata()
                 summary, policy_loss, value_loss, policy_entropy, _ = self.sess.run(
                     [self.summary, self.pg_loss, self.vf_loss, self.entropy, self.train_op],
                     td_map, options=run_options, run_metadata=run_metadata)
@@ -299,24 +299,24 @@ class ACKTR(ActorCriticRLModel):
             # FIFO queue of the q_runner thread is closed at the end of the learn function.
             # As a result, it needs to be redefinied at every call
             with self.graph.as_default():
-                with tf.variable_scope("kfac_apply", reuse=self.trained,
+                with tf.compat.v1.variable_scope("kfac_apply", reuse=self.trained,
                                        custom_getter=tf_util.outer_scope_getter("kfac_apply")):
                     # Some of the variables are not in a scope when they are create
                     # so we make a note of any previously uninitialized variables
-                    tf_vars = tf.global_variables()
-                    is_uninitialized = self.sess.run([tf.is_variable_initialized(var) for var in tf_vars])
+                    tf_vars = tf.compat.v1.global_variables()
+                    is_uninitialized = self.sess.run([tf.compat.v1.is_variable_initialized(var) for var in tf_vars])
                     old_uninitialized_vars = [v for (v, f) in zip(tf_vars, is_uninitialized) if not f]
 
                     self.train_op, self.q_runner = self.optim.apply_gradients(list(zip(self.grads_check, self.params)))
 
                     # then we check for new uninitialized variables and initialize them
-                    tf_vars = tf.global_variables()
-                    is_uninitialized = self.sess.run([tf.is_variable_initialized(var) for var in tf_vars])
+                    tf_vars = tf.compat.v1.global_variables()
+                    is_uninitialized = self.sess.run([tf.compat.v1.is_variable_initialized(var) for var in tf_vars])
                     new_uninitialized_vars = [v for (v, f) in zip(tf_vars, is_uninitialized)
                                               if not f and v not in old_uninitialized_vars]
 
                     if len(new_uninitialized_vars) != 0:
-                        self.sess.run(tf.variables_initializer(new_uninitialized_vars))
+                        self.sess.run(tf.compat.v1.variables_initializer(new_uninitialized_vars))
 
             self.trained = True
 
