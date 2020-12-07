@@ -127,7 +127,7 @@ setup(name='stable_baselines',
           'joblib',
           'cloudpickle>=0.5.5',
           'opencv-python',
-          'numpy<1.19.0',
+          'numpy',
           'pandas',
           'matplotlib'
       ] + find_tf_dependency(),
